@@ -2,6 +2,9 @@ name: RepLabs GHCR image build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - replabs/provider-lockdown-ghcr-build
 
 permissions:
   contents: read
