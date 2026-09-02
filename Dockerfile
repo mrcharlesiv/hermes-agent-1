@@ -201,15 +201,15 @@ COPY . .
 RUN uv pip install --no-cache-dir --no-deps -e "."
 
 # ---------- RepLabs: local speech-to-text out of the box ----------
-# Pre-download the faster-whisper "base" model (Hermes' stt.local default) into an
-# image-level Hugging Face cache so the first voice memo after every sandbox launch
+# Pre-download the faster-whisper "small" (RepLabs' default, seeded by the bootstrap) and
+# "base" (Hermes' own default) models into an image-level Hugging Face cache so the first voice memo after every sandbox launch
 # doesn't pay a ~150 MB download. Loading it here also proves the ctranslate2 wheel
 # works on this base image. The cache stays writable for the runtime user below so a
 # workspace that picks a bigger model (stt.local.model: small/medium) can still fetch it.
 ENV HF_HOME=/opt/hermes/hf-cache \
     HF_HUB_DISABLE_TELEMETRY=1
 RUN mkdir -p /opt/hermes/hf-cache && \
-    /opt/hermes/.venv/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8')"
+    /opt/hermes/.venv/bin/python -c "from faster_whisper import WhisperModel; [WhisperModel(m, device='cpu', compute_type='int8') for m in ('base', 'small')]"
 
 # Keep /opt/hermes immutable for the runtime hermes user. Hosted/container
 # instances must not be able to self-edit the installed source or venv; user
