@@ -177,7 +177,10 @@ RUN npm install --prefer-offline --no-audit && \
 # The editable link is created after the source copy below.
 COPY pyproject.toml uv.lock ./
 RUN touch ./README.md
-RUN uv sync --frozen --no-install-project --extra all --extra messaging --extra anthropic --extra bedrock --extra azure-identity --extra hindsight --extra matrix
+# RepLabs: [voice] (faster-whisper) is baked in so every hosted Rev transcribes voice
+# memos locally out of the box — no first-boot lazy install, no API key. The model
+# weights are pre-downloaded below.
+RUN uv sync --frozen --no-install-project --extra all --extra messaging --extra anthropic --extra bedrock --extra azure-identity --extra hindsight --extra matrix --extra voice
 
 # ---------- Frontend build (cached independently from Python source) ----------
 # Copy only the frontend source trees first so that Python-only changes don't
@@ -197,6 +200,17 @@ COPY . .
 # resolution or downloads.
 RUN uv pip install --no-cache-dir --no-deps -e "."
 
+# ---------- RepLabs: local speech-to-text out of the box ----------
+# Pre-download the faster-whisper "base" model (Hermes' stt.local default) into an
+# image-level Hugging Face cache so the first voice memo after every sandbox launch
+# doesn't pay a ~150 MB download. Loading it here also proves the ctranslate2 wheel
+# works on this base image. The cache stays writable for the runtime user below so a
+# workspace that picks a bigger model (stt.local.model: small/medium) can still fetch it.
+ENV HF_HOME=/opt/hermes/hf-cache \
+    HF_HUB_DISABLE_TELEMETRY=1
+RUN mkdir -p /opt/hermes/hf-cache && \
+    /opt/hermes/.venv/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8')"
+
 # Keep /opt/hermes immutable for the runtime hermes user. Hosted/container
 # instances must not be able to self-edit the installed source or venv; user
 # data, skills, plugins, config, logs, and dashboard uploads live under
@@ -209,7 +223,9 @@ RUN mkdir -p /opt/hermes/bin && \
     printf 'docker\n' > /opt/hermes/.install_method && \
     chown -R root:root /opt/hermes && \
     chmod -R a+rX /opt/hermes && \
-    chmod -R a-w /opt/hermes
+    chmod -R a-w /opt/hermes && \
+    chown -R hermes:hermes /opt/hermes/hf-cache && \
+    chmod -R u+w /opt/hermes/hf-cache
 # The ``.install_method`` stamp is baked next to the running code (the install
 # tree), NOT into $HERMES_HOME. $HERMES_HOME (/opt/data) is a shared data
 # volume that is commonly bind-mounted from the host and even shared with a
